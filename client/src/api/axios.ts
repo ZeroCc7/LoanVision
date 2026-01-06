@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 10000,
 });
 
@@ -26,9 +26,8 @@ instance.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
-      // 适配子路径跳转
-      const base = import.meta.env.BASE_URL || '/';
-      window.location.href = base + 'login';
+      // 适配登录跳转
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Button, Space, App, Alert, Badge, Segmented, Divider, theme, Tag } from 'antd';
+import { Row, Col, Card, Statistic, Table, Typography, Button, Space, App, Alert, Badge, Segmented, Divider, theme, Tag, Modal, Form, Input, InputNumber, DatePicker, Select } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   ComposedChart,
@@ -15,8 +15,8 @@ import {
   Pie,
   Legend,
 } from 'recharts';
-import { CreditCardOutlined, BankOutlined, WarningOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { CreditCardOutlined, BankOutlined, WarningOutlined, PlusOutlined, HistoryOutlined, SettingOutlined } from '@ant-design/icons';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import dayjs from 'dayjs';
 
@@ -68,13 +68,31 @@ interface DashboardData {
 
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const { token } = theme.useToken();
   
-  // 更准确的深色模式判断
-  const isDarkMode = token.colorBgContainer === '#141414' || token.colorBgContainer === '#000000' || token.colorBgBase === '#000';
+  // 固定为深色科技感模式
+  const isDarkMode = true;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [trendRange, setTrendRange] = useState<string>('past');
+  const [trendRange, setTrendRange] = useState<string>('future');
+  const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
+  const [isQuickRecordModalVisible, setIsQuickRecordModalVisible] = useState(false);
+  const [form] = Form.useForm();
+
+  // 定义霓虹特效颜色
+  const colors = {
+    cyan: '#00d2ff',
+    magenta: '#ff00ff',
+    lime: '#39ff14',
+    orange: '#ff9d00',
+    red: '#ff4d4f',
+    blue: '#1890ff',
+    purple: '#9254de',
+    gold: '#ffd700',
+    pink: '#ff85c0',
+    mint: '#00fac9'
+  };
 
   const filteredTrendData = useMemo(() => {
     if (!data?.trend) return [];
@@ -92,9 +110,10 @@ const Dashboard: React.FC = () => {
 
     return result.map(item => ({
       ...item,
+      is_selected: item.month === selectedMonth,
       is_future: dayjs(item.month).isAfter(currentMonth, 'month')
     }));
-  }, [data?.trend, trendRange]);
+  }, [data?.trend, trendRange, selectedMonth]);
   const [monthlyDetails, setMonthlyDetails] = useState<{ items: RepaymentItem[] } | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [filterMethod, setFilterMethod] = useState<string>('all');
@@ -107,6 +126,18 @@ const Dashboard: React.FC = () => {
       message.error('获取统计数据失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickRecord = async (values: any) => {
+    try {
+      await api.post('/accounts', values);
+      message.success('记录成功');
+      setIsQuickRecordModalVisible(false);
+      form.resetFields();
+      fetchDashboardData();
+    } catch (error) {
+      message.error('记录失败');
     }
   };
 
@@ -124,8 +155,11 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    fetchMonthlyDetails(dayjs().format('YYYY-MM'));
   }, []);
+
+  useEffect(() => {
+    fetchMonthlyDetails(selectedMonth);
+  }, [selectedMonth]);
 
   const handleMarkPaid = async (repaymentId: number) => {
     try {
@@ -137,29 +171,66 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  if (loading || !data) {
-    return <div>加载中...</div>;
+  // 计算饼图数据
+  const innerPieData = useMemo(() => {
+    if (!monthlyDetails) return [];
+    return [
+      { name: '先息后本', value: monthlyDetails.items.filter((r: RepaymentItem) => r.repayment_method === 'interest_first').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: colors.orange },
+      { name: '等额类', value: monthlyDetails.items.filter((r: RepaymentItem) => r.repayment_method === 'equal_installment' && r.account_type === 'commercial_loan').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: colors.mint },
+      { name: '信用卡', value: monthlyDetails.items.filter((r: RepaymentItem) => r.account_type === 'credit_card').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: colors.pink },
+    ].filter(i => i.value > 0);
+  }, [monthlyDetails, colors.orange, colors.mint, colors.pink]);
+
+  const outerPieData = useMemo(() => {
+    if (!monthlyDetails) return [];
+    // 预定义一套互不重复的颜色池
+    const colorPool = [
+      colors.cyan, colors.magenta, colors.lime, colors.blue, 
+      colors.purple, colors.gold, colors.red, colors.mint, colors.pink
+    ];
+    
+    return monthlyDetails.items.map((item: RepaymentItem, index: number) => ({
+      name: item.account_name,
+      value: item.amount,
+      color: colorPool[index % colorPool.length]
+    }));
+  }, [monthlyDetails, colors.cyan, colors.magenta, colors.lime, colors.blue, colors.purple, colors.gold, colors.red, colors.mint, colors.pink]);
+
+  const filteredItems = useMemo(() => {
+    if (!monthlyDetails?.items) return [];
+    return monthlyDetails.items.filter((item: RepaymentItem) => {
+      if (filterMethod === 'all') return true;
+      if (filterMethod === 'interest_first') return item.repayment_method === 'interest_first';
+      if (filterMethod === 'equal') return item.repayment_method === 'equal_installment';
+      return true;
+    });
+  }, [monthlyDetails?.items, filterMethod]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', flexDirection: 'column', gap: 16 }}>
+        <Badge status="processing" text="正在加载统计数据..." />
+      </div>
+    );
   }
 
-  // 计算饼图双层数据
-  const innerPieData = monthlyDetails ? [
-    { name: '先息后本', value: monthlyDetails.items.filter((r: RepaymentItem) => r.repayment_method === 'interest_first').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: '#ff7a45' },
-    { name: '等额类', value: monthlyDetails.items.filter((r: RepaymentItem) => r.repayment_method === 'equal_installment' && r.account_type === 'commercial_loan').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: '#1890ff' },
-    { name: '信用卡', value: monthlyDetails.items.filter((r: RepaymentItem) => r.account_type === 'credit_card').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: '#52c41a' },
-  ].filter(i => i.value > 0) : [];
-
-  const outerPieData = monthlyDetails ? monthlyDetails.items.map((item: RepaymentItem) => ({
-    name: item.account_name,
-    value: item.amount,
-    color: item.repayment_method === 'interest_first' ? '#ffbb96' : (item.account_type === 'credit_card' ? '#95de64' : '#69c0ff')
-  })) : [];
-
-  const filteredItems = monthlyDetails?.items.filter((item: RepaymentItem) => {
-    if (filterMethod === 'all') return true;
-    if (filterMethod === 'interest_first') return item.repayment_method === 'interest_first';
-    if (filterMethod === 'equal') return item.repayment_method === 'equal_installment';
-    return true;
-  }) || [];
+  if (!data) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <Alert
+          message="无法获取数据"
+          description="获取统计数据失败，请检查网络连接或尝试重新登录。"
+          type="error"
+          showIcon
+          action={
+            <Button size="small" type="primary" onClick={() => fetchDashboardData()}>
+              重试
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   const columns: ColumnsType<RepaymentItem> = [
     { 
@@ -182,8 +253,8 @@ const Dashboard: React.FC = () => {
         const isLastPeriod = record.repayment_method === 'interest_first' && record.period_number === record.periods;
         return (
           <div>
-            <Text strong>￥{val.toLocaleString()}</Text>
-            <div style={{ fontSize: '11px', color: isDarkMode ? '#8c8c8c' : '#888' }}>
+            <Text strong style={{ color: colors.cyan }}>￥{val.toLocaleString()}</Text>
+            <div style={{ fontSize: '11px', color: '#8c8c8c' }}>
               {isLastPeriod ? 
                 `(本金${(val - record.base_monthly_payment).toLocaleString()} + 利息${record.base_monthly_payment.toLocaleString()})` : 
                 (record.repayment_method === 'interest_first' ? '(仅利息)' : '')
@@ -209,178 +280,274 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div>
-      <Title level={2} style={{ marginBottom: 24 }}>仪表盘</Title>
-
-      {/* 先息后本专项预警 */}
-      {data.interestFirstAlerts.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          {data.interestFirstAlerts.map(alert => (
-            <Alert
-              key={alert.id}
-              message="先息后本到期预警"
-              description={
-                <div>
-                  <Text strong>{alert.account_name}</Text> 将于 <Text type="danger" strong>{alert.due_date}</Text> 到期，需归还本金+利息合计 <Text type="danger" strong>￥{alert.amount.toLocaleString()}</Text>。
-                  <Button type="link" size="small" onClick={() => handleMarkPaid(alert.id)}>去标记还款</Button>
-                </div>
-              }
-              type="error"
-              showIcon
-              icon={<WarningOutlined />}
-              style={{ marginBottom: 16, borderRadius: 8, borderLeft: '5px solid #ff4d4f' }}
-            />
-          ))}
+    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Title level={4} style={{ margin: 0, letterSpacing: '1px' }}>数据概览</Title>
+          <Tag color="blue" style={{ borderRadius: '2px', background: 'rgba(0, 210, 255, 0.1)', border: '1px solid rgba(0, 210, 255, 0.3)', color: colors.cyan }}>
+            {selectedMonth}
+          </Tag>
         </div>
-      )}
+        <Button 
+          type="primary" 
+          icon={<PlusOutlined />} 
+          size="middle"
+          onClick={() => setIsQuickRecordModalVisible(true)}
+          style={{ borderRadius: '4px', boxShadow: '0 0 15px rgba(0, 210, 255, 0.3)' }}
+        >
+          快捷记录
+        </Button>
+      </div>
+
+      {/* 快捷导航 */}
+      <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
+        <Col xs={12} sm={6}>
+          <Card 
+            hoverable 
+            size="small"
+            style={{ textAlign: 'center', borderRadius: '8px', background: 'rgba(0, 210, 255, 0.05)', border: '1px solid rgba(0, 210, 255, 0.1)' }} 
+            onClick={() => navigate('/credit-cards')}
+          >
+            <CreditCardOutlined style={{ fontSize: 20, color: colors.cyan, marginBottom: 4 }} />
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>信用卡分期</div>
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card 
+            hoverable 
+            size="small"
+            style={{ textAlign: 'center', borderRadius: '8px', background: 'rgba(57, 255, 20, 0.05)', border: '1px solid rgba(57, 255, 20, 0.1)' }} 
+            onClick={() => navigate('/loans')}
+          >
+            <BankOutlined style={{ fontSize: 20, color: colors.lime, marginBottom: 4 }} />
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>商业贷款</div>
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card 
+            hoverable 
+            size="small"
+            style={{ textAlign: 'center', borderRadius: '8px', background: 'rgba(255, 157, 0, 0.05)', border: '1px solid rgba(255, 157, 0, 0.1)' }} 
+            onClick={() => navigate('/history')}
+          >
+            <HistoryOutlined style={{ fontSize: 20, color: colors.orange, marginBottom: 4 }} />
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>还款历史</div>
+          </Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card 
+            hoverable 
+            size="small"
+            style={{ textAlign: 'center', borderRadius: '8px', background: 'rgba(255, 77, 79, 0.05)', border: '1px solid rgba(255, 77, 79, 0.1)' }} 
+            onClick={() => navigate('/settings')}
+          >
+            <SettingOutlined style={{ fontSize: 20, color: colors.red, marginBottom: 4 }} />
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>系统设置</div>
+          </Card>
+        </Col>
+      </Row>
 
       {/* Summary Cards */}
-      <Row gutter={[16, 16]}>
+      <Row gutter={[8, 8]}>
         <Col xs={24} sm={12} md={6}>
-          <Card variant="borderless" className="stat-card">
+          <Card 
+            variant="borderless" 
+            size="small"
+            style={{ 
+              background: 'linear-gradient(135deg, #001529 0%, #003366 100%)',
+              borderRadius: '8px',
+              border: '1px solid rgba(0, 210, 255, 0.3)',
+              boxShadow: '0 0 15px rgba(0, 210, 255, 0.2)'
+            }}
+          >
             <Statistic
-              title="本月总应还"
+              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>本月总应还</span>}
               value={data.summary.total_monthly}
               precision={2}
-              prefix="￥"
-              valueStyle={{ color: '#1890ff' }}
+              prefix={<span style={{ color: colors.cyan, fontSize: 14 }}>￥</span>}
+              styles={{ content: { color: colors.cyan, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.cyan}66` } }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card variant="borderless" className="stat-card">
+          <Card 
+            variant="borderless"
+            size="small"
+            style={{ 
+              background: 'linear-gradient(135deg, #092b00 0%, #135200 100%)',
+              borderRadius: '8px',
+              border: '1px solid rgba(57, 255, 20, 0.3)',
+              boxShadow: '0 0 15px rgba(57, 255, 20, 0.2)'
+            }}
+          >
             <Statistic
-              title="本月已还"
+              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>本月已还</span>}
               value={data.summary.paid_monthly}
               precision={2}
-              prefix="￥"
-              valueStyle={{ color: '#52c41a' }}
+              prefix={<span style={{ color: colors.lime, fontSize: 14 }}>￥</span>}
+              styles={{ content: { color: colors.lime, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.lime}66` } }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card variant="borderless" className="stat-card">
+          <Card 
+            variant="borderless"
+            size="small"
+            style={{ 
+              background: 'linear-gradient(135deg, #442a00 0%, #874d00 100%)',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 157, 0, 0.3)',
+              boxShadow: '0 0 15px rgba(255, 157, 0, 0.2)'
+            }}
+          >
             <Statistic
-              title="本月待还"
+              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>本月待还</span>}
               value={data.summary.pending_monthly}
               precision={2}
-              prefix="￥"
-              valueStyle={{ color: '#faad14' }}
+              prefix={<span style={{ color: colors.orange, fontSize: 14 }}>￥</span>}
+              styles={{ content: { color: colors.orange, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.orange}66` } }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <Card variant="borderless" className="stat-card">
+          <Card 
+            variant="borderless"
+            size="small"
+            style={{ 
+              background: 'linear-gradient(135deg, #430000 0%, #820000 100%)',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 77, 79, 0.3)',
+              boxShadow: '0 0 15px rgba(255, 77, 79, 0.2)'
+            }}
+          >
             <Statistic
-              title="总剩余待还"
+              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>总剩余待还</span>}
               value={data.summary.total_remaining}
               precision={2}
-              prefix="￥"
-              valueStyle={{ color: '#f5222d' }}
+              prefix={<span style={{ color: colors.red, fontSize: 14 }}>￥</span>}
+              styles={{ content: { color: colors.red, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.red}66` } }}
             />
           </Card>
         </Col>
       </Row>
 
       {/* Charts Section */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+      <Row gutter={[8, 8]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={16}>
           <Card 
-            title="还款趋势" 
+            title={<span style={{ fontSize: 14 }}>还款趋势分析</span>}
             variant="borderless" 
-            style={{ height: '100%' }}
+            size="small"
+            style={{ height: '100%', background: isDarkMode ? 'rgba(0, 20, 40, 0.2)' : '#fff' }}
             extra={
               <Segmented 
+                size="small"
                 options={[
-                  { label: '过去12个月', value: 'past' },
-                  { label: '未来12个月', value: 'future' }
+                  { label: '过去', value: 'past' },
+                  { label: '未来', value: 'future' }
                 ]} 
                 value={trendRange}
                 onChange={(value) => setTrendRange(value as string)}
               />
             }
           >
-            <div style={{ height: 350, width: '100%' }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ height: 280, width: '100%', minHeight: 280 }}>
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <ComposedChart 
                   data={filteredTrendData} 
-                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  onClick={(data) => {
+                    if (data && data.activeLabel) {
+                      setSelectedMonth(data.activeLabel);
+                    }
+                  }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? '#303030' : '#f0f0f0'} />
+                  <defs>
+                    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={colors.cyan} stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor={colors.cyan} stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="warningGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={colors.red} stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor={colors.red} stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1f1f1f" />
                   <XAxis 
                     dataKey="month" 
-                    stroke={isDarkMode ? '#8c8c8c' : '#595959'}
-                    tick={({ x, y, payload }) => (
-                      <g transform={`translate(${x},${y})`}>
-                        <text 
-                          x={0} 
-                          y={0} 
-                          dy={16} 
-                          textAnchor="middle" 
-                          fill={payload.value === dayjs().format('YYYY-MM') ? token.colorPrimary : (isDarkMode ? '#8c8c8c' : '#666')}
-                          fontWeight={payload.value === dayjs().format('YYYY-MM') ? 'bold' : 'normal'}
-                          fontSize={12}
-                        >
-                          {payload.value}
-                        </text>
-                      </g>
-                    )}
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tick={{ fill: 'rgba(255,255,255,0.65)' }}
                   />
-                  <YAxis stroke={isDarkMode ? '#8c8c8c' : '#595959'} tick={{ fontSize: 12 }} />
+                  <YAxis 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tick={{ fill: 'rgba(255,255,255,0.65)' }}
+                  />
                   <Tooltip 
-                    formatter={(value: any) => `￥${Number(value).toLocaleString()}`}
-                    contentStyle={{ 
-                      backgroundColor: isDarkMode ? '#1f1f1f' : '#fff', 
-                      borderColor: isDarkMode ? '#434343' : '#ccc',
-                      borderRadius: '4px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.85)'
-                    }}
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
-                        const d = payload[0].payload as TrendItem;
-                        const isCurrent = label === dayjs().format('YYYY-MM');
+                        const data = payload[0].payload;
                         return (
                           <div style={{ 
-                            backgroundColor: isDarkMode ? '#1f1f1f' : '#fff', 
-                            padding: '10px', 
-                            border: `1px solid ${isDarkMode ? '#434343' : '#ccc'}`, 
-                            borderRadius: '4px', 
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)' 
+                            backgroundColor: 'rgba(0, 20, 40, 0.95)',
+                            borderRadius: '4px',
+                            border: '1px solid rgba(0, 210, 255, 0.5)',
+                            padding: '10px',
+                            boxShadow: '0 0 15px rgba(0, 210, 255, 0.2)',
+                            color: '#fff'
                           }}>
-                            <p style={{ margin: 0, fontWeight: 'bold', color: isCurrent ? token.colorPrimary : (isDarkMode ? '#fff' : '#000') }}>
-                              {label} {isCurrent && '(本月)'}
-                            </p>
-                            <p style={{ margin: 0, color: token.colorPrimary }}>总还款额: ￥{d.amount.toLocaleString()}</p>
-                            <p style={{ margin: 0, color: '#fa8c16' }}>先息后本: ￥{d.interest_first_amount.toLocaleString()}</p>
-                            <p style={{ margin: 0, color: '#b37feb' }}>其他方式: ￥{d.other_amount.toLocaleString()}</p>
-                            {d.is_warning && (
-                              <p style={{ margin: '5px 0 0', color: '#ff4d4f', fontWeight: 'bold' }}>
-                                <WarningOutlined /> {d.warning_msg}
-                              </p>
-                            )}
+                            <div style={{ marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', fontWeight: 'bold', color: colors.cyan }}>
+                              {label}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
+                                <span style={{ color: 'rgba(255,255,255,0.7)' }}>总计还款:</span>
+                                <span style={{ color: colors.cyan, fontWeight: 'bold', fontFamily: 'Monospace' }}>￥{data.amount.toLocaleString()}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
+                                <span style={{ color: 'rgba(255,255,255,0.7)' }}>先息后本:</span>
+                                <span style={{ color: colors.orange, fontFamily: 'Monospace' }}>￥{data.interest_first_amount.toLocaleString()}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
+                                <span style={{ color: 'rgba(255,255,255,0.7)' }}>其他还款:</span>
+                                <span style={{ color: colors.lime, fontFamily: 'Monospace' }}>￥{data.other_amount.toLocaleString()}</span>
+                              </div>
+                              {data.is_warning && (
+                                <div style={{ marginTop: '8px', padding: '4px 8px', background: 'rgba(255, 77, 79, 0.1)', border: '1px solid rgba(255, 77, 79, 0.3)', borderRadius: '2px', color: colors.red, fontSize: '11px' }}>
+                                  <WarningOutlined style={{ marginRight: '4px' }} />
+                                  {data.warning_msg}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       }
                       return null;
                     }}
+                    cursor={{ fill: 'rgba(0, 210, 255, 0.05)' }}
                   />
-                  <Legend verticalAlign="top" height={36}/>
-                  <Bar dataKey="amount" name="总还款额" fill={isDarkMode ? '#1d39c4' : '#e6f7ff'} barSize={40}>
+                  <Bar dataKey="amount" name="总还款额" barSize={30}>
                     { filteredTrendData.map((entry, index) => {
                       const isCurrent = entry.month === dayjs().format('YYYY-MM');
-                      let fillColor = isDarkMode ? '#111d2c' : '#f5f5f5'; // 默认
-                      let strokeColor = isDarkMode ? '#303030' : '#d9d9d9';
+                      let fillColor = 'url(#barGradient)';
+                      let strokeColor = colors.cyan;
 
                       if (entry.is_warning) {
-                        fillColor = isDarkMode ? '#58181c' : '#fff1f0';
-                        strokeColor = '#ff4d4f';
+                        fillColor = 'url(#warningGradient)';
+                        strokeColor = colors.red;
+                      } else if (entry.is_selected) {
+                        fillColor = 'url(#barGradient)';
+                        strokeColor = '#fff'; // 选中状态显示白边
                       } else if (isCurrent) {
-                        fillColor = isDarkMode ? '#153450' : '#e6f7ff';
-                        strokeColor = token.colorPrimary;
-                      } else if (entry.is_future) {
-                        fillColor = isDarkMode ? '#141414' : '#fafafa';
-                        strokeColor = isDarkMode ? '#434343' : '#d9d9d9';
+                        fillColor = 'url(#barGradient)';
+                        strokeColor = colors.cyan;
                       }
 
                       return (
@@ -388,56 +555,86 @@ const Dashboard: React.FC = () => {
                           key={`cell-${index}`} 
                           fill={fillColor} 
                           stroke={strokeColor}
-                          strokeWidth={isCurrent ? 2 : 1}
+                          strokeWidth={entry.is_selected || isCurrent ? 2 : 1}
+                          filter={entry.is_selected || isCurrent || entry.is_warning ? "url(#neonGlow)" : "none"}
+                          style={{ cursor: 'pointer' }}
                         />
                       );
                     })}
                   </Bar>
-                  <Line type="monotone" dataKey="interest_first_amount" name="先息后本还款额" stroke="#fa8c16" strokeWidth={2} dot={{ r: 4, fill: '#fa8c16' }} />
-                  <Line type="monotone" dataKey="other_amount" name="其他还款额" stroke="#b37feb" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 4, fill: '#b37feb' }} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="interest_first_amount" 
+                    name="先息后本" 
+                    stroke={colors.orange} 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: colors.orange, stroke: colors.orange, filter: "url(#neonGlow)" }}
+                    filter="url(#neonGlow)"
+                  />
+                  <Legend 
+                    verticalAlign="top" 
+                    height={36} 
+                    iconType="circle" 
+                    wrapperStyle={{ fontSize: '10px', color: '#fff' }}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
-            </div>
-            <div style={{ textAlign: 'center', marginTop: 10 }}>
-              <Space split={<Divider type="vertical" />}>
-                <Badge color="#1890ff" text="本月" />
-                <Badge color="#ff4d4f" text="到期预警" />
-                <Badge color="#d9d9d9" text="其他月份" />
-              </Space>
             </div>
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title="本月占比 (双层)" variant="borderless" style={{ height: '100%' }}>
-            <div style={{ height: 350 }}>
-              <ResponsiveContainer width="100%" height="100%">
+          <Card 
+            title={<span style={{ fontSize: 14 }}>{selectedMonth} 构成分析</span>} 
+            variant="borderless" 
+            size="small" 
+            style={{ height: '100%', background: isDarkMode ? 'rgba(0, 20, 40, 0.2)' : '#fff' }}
+          >
+            <div style={{ height: 280, minHeight: 280 }}>
+              <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <PieChart>
-                  {/* 内层：还款方式聚合 */}
+                  <defs>
+                    <filter id="neonGlowPie" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="2" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                  </defs>
                   <Pie
                     data={innerPieData}
                     innerRadius={0}
-                    outerRadius={60}
+                    outerRadius={50}
                     dataKey="value"
                     stroke="none"
                   >
                     {innerPieData.map((entry: any, index: number) => (
-                      <Cell key={`inner-cell-${index}`} fill={entry.color} />
+                      <Cell key={`inner-cell-${index}`} fill={entry.color} fillOpacity={0.8} filter="url(#neonGlowPie)" />
                     ))}
                   </Pie>
-                  {/* 外层：具体账目 */}
                   <Pie
                     data={outerPieData}
-                    innerRadius={70}
-                    outerRadius={100}
+                    innerRadius={60}
+                    outerRadius={85}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(Number(percent || 0) * 100).toFixed(0)}%`}
+                    label={({ percent }) => `${(Number(percent || 0) * 100).toFixed(0)}%`}
+                    labelLine={false}
+                    stroke="none"
                   >
                     {outerPieData.map((entry: any, index: number) => (
-                      <Cell key={`outer-cell-${index}`} fill={entry.color} />
+                      <Cell key={`outer-cell-${index}`} fill={entry.color} fillOpacity={0.6} filter="url(#neonGlowPie)" />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: any) => `￥${Number(value).toLocaleString()}`} />
-                  <Legend verticalAlign="bottom" height={36}/>
+                  <Tooltip 
+                    formatter={(value: any) => `￥${Number(value).toLocaleString()}`}
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(0, 20, 40, 0.95)',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(0, 210, 255, 0.5)',
+                      fontSize: '12px',
+                      color: '#fff',
+                      boxShadow: '0 0 10px rgba(0, 210, 255, 0.2)'
+                    }}
+                    itemStyle={{ color: '#fff' }}
+                    labelStyle={{ color: 'rgba(255, 255, 255, 0.7)', marginBottom: '4px', fontWeight: 'bold' }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -446,66 +643,36 @@ const Dashboard: React.FC = () => {
       </Row>
 
       {/* Upcoming & Details */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col xs={24} md={12}>
+      <Row gutter={[8, 8]} style={{ marginTop: 16 }}>
+        <Col xs={24}>
           <Card 
-            title="当月还款明细" 
+            title={<span style={{ fontSize: 14 }}>{selectedMonth} 还款计划明细</span>} 
             variant="borderless"
+            size="small"
+            style={{ background: isDarkMode ? 'rgba(0, 20, 40, 0.2)' : '#fff' }}
             extra={
               <Segmented 
+                size="small"
                 options={[
                   { label: '全部', value: 'all' },
                   { label: '先息后本', value: 'interest_first' },
-                  { label: '等额类', value: 'equal' }
+                  { label: '等额', value: 'equal' }
                 ]} 
                 value={filterMethod}
-                onChange={(v) => setFilterMethod(v as string)}
+                onChange={(value) => setFilterMethod(value as string)}
               />
             }
           >
             <Table 
+              columns={columns} 
               dataSource={filteredItems} 
-              loading={detailsLoading}
-              rowKey="id"
-              pagination={false}
+              rowKey="id" 
               size="small"
-              columns={columns}
-              rowClassName={(record) => record.repayment_method === 'interest_first' ? 'interest-first-row' : ''}
+              loading={detailsLoading}
+              pagination={false}
+              scroll={{ x: 'max-content' }}
+              style={{ fontSize: '12px' }}
             />
-          </Card>
-        </Col>
-        <Col xs={24} md={12}>
-          <Card title="先息后本贷款总览" variant="borderless">
-             <Row gutter={16}>
-               <Col span={12}>
-                 <Statistic title="总笔数" value={data.interestFirstSummary.total_count} suffix="笔" />
-               </Col>
-               <Col span={12}>
-                 <Statistic title="活跃总额" value={data.interestFirstSummary.active_total_amount} precision={2} prefix="￥" />
-               </Col>
-             </Row>
-             <div style={{ marginTop: 24 }}>
-               <Alert
-                message={`未来6个月内有 ${data.interestFirstSummary.upcoming_6_months} 笔先息后本贷款到期`}
-                type={data.interestFirstSummary.upcoming_6_months > 0 ? "warning" : "info"}
-                showIcon
-                action={
-                  <Button size="small" type="link">
-                    <Link to="/loans">去管理</Link>
-                  </Button>
-                }
-               />
-             </div>
-             <div style={{ marginTop: 24 }}>
-               <Space direction="vertical" style={{ width: '100%' }}>
-                <Button type="default" block icon={<CreditCardOutlined />}>
-                   <Link to="/credit-cards">查看信用卡分期</Link>
-                </Button>
-                <Button type="default" block icon={<BankOutlined />}>
-                   <Link to="/loans">查看商业贷款</Link>
-                </Button>
-              </Space>
-             </div>
           </Card>
         </Col>
       </Row>
@@ -525,7 +692,81 @@ const Dashboard: React.FC = () => {
         .ant-table-wrapper .ant-table-thead > tr > th {
           background-color: ${isDarkMode ? '#1d1d1d' : '#fafafa'} !important;
         }
+        .recharts-default-tooltip {
+          background-color: rgba(0, 20, 40, 0.95) !important;
+          border: 1px solid rgba(0, 210, 255, 0.5) !important;
+        }
+        .recharts-tooltip-item-list {
+          color: #fff !important;
+        }
+        .recharts-pie-label-text {
+          fill: #fff !important;
+        }
       `}</style>
+      {/* Quick Record Modal */}
+      <Modal
+        title="快捷记录"
+        open={isQuickRecordModalVisible}
+        onCancel={() => setIsQuickRecordModalVisible(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleQuickRecord}
+          initialValues={{
+            type: 'credit_card',
+            repayment_method: 'equal_installment',
+            start_date: dayjs(),
+          }}
+        >
+          <Form.Item name="name" label="账目名称" rules={[{ required: true }]}>
+            <Input placeholder="例如：招商银行信用卡" />
+          </Form.Item>
+          <Form.Item name="type" label="类型" rules={[{ required: true }]}>
+            <Select options={[
+              { label: '信用卡分期', value: 'credit_card' },
+              { label: '商业贷款', value: 'commercial_loan' }
+            ]} />
+          </Form.Item>
+          <Form.Item name="repayment_method" label="还款方式" rules={[{ required: true }]}>
+            <Select options={[
+              { label: '等额本息/本金', value: 'equal_installment' },
+              { label: '先息后本', value: 'interest_first' }
+            ]} />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="total_amount" label="总金额" rules={[{ required: true }]}>
+                <InputNumber style={{ width: '100%' }} prefix="￥" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="periods" label="总期数" rules={[{ required: true }]}>
+                <InputNumber style={{ width: '100%' }} min={1} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="start_date" label="开始日期" rules={[{ required: true }]}>
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="payment_day" label="每月还款日" rules={[{ required: true }]}>
+                <InputNumber style={{ width: '100%' }} min={1} max={31} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block size="large">
+              提交记录
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

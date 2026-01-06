@@ -142,27 +142,35 @@ const AccountList: React.FC<AccountListProps> = ({ type, title }) => {
     }
   };
 
+  const colors = {
+    cyan: '#00d2ff',
+    lime: '#39ff14',
+    orange: '#ff9d00',
+    red: '#ff4d4f',
+    blue: '#1890ff',
+  };
+
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name' },
-    { title: '总金额', dataIndex: 'total_amount', key: 'total_amount', render: (val: number) => `￥${val.toLocaleString()}` },
+    { title: '名称', dataIndex: 'name', key: 'name', render: (text: string) => <span style={{ color: colors.cyan, fontWeight: 'bold' }}>{text}</span> },
+    { title: '总金额', dataIndex: 'total_amount', key: 'total_amount', render: (val: number) => <span style={{ fontFamily: 'Monospace' }}>￥{val.toLocaleString()}</span> },
     { 
       title: '期数', 
       key: 'periods',
       render: (_: any, record: Account) => (
-        <span>
-          {record.periods}期 (余 {record.remaining_periods ?? '-'} 期)
+        <span style={{ fontSize: '12px' }}>
+          {record.periods}期 (余 <span style={{ color: colors.orange }}>{record.remaining_periods ?? '-'}</span> 期)
         </span>
       )
     },
-    { title: '每月还款', dataIndex: 'monthly_payment', key: 'monthly_payment', render: (val: number) => `￥${val.toLocaleString()}` },
+    { title: '每月还款', dataIndex: 'monthly_payment', key: 'monthly_payment', render: (val: number) => <span style={{ color: colors.lime, fontFamily: 'Monospace' }}>￥{val.toLocaleString()}</span> },
     { title: '还款日', dataIndex: 'payment_day', key: 'payment_day', render: (val: number) => `每月${val}日` },
-    { title: '开始日期', dataIndex: 'start_date', key: 'start_date' },
+    { title: '开始日期', dataIndex: 'start_date', key: 'start_date', render: (val: string) => <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>{val}</span> },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={status === 'active' ? 'green' : 'gray'}>
+        <Tag color={status === 'active' ? 'processing' : 'default'} style={{ borderRadius: '2px', border: 'none' }}>
           {status === 'active' ? '进行中' : '已结清'}
         </Tag>
       ),
@@ -172,9 +180,9 @@ const AccountList: React.FC<AccountListProps> = ({ type, title }) => {
       key: 'action',
       render: (_: any, record: Account) => (
         <Space size="middle">
-          <Button type="link" icon={<EyeOutlined />} onClick={() => showSchedule(record)}>详情</Button>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => showSchedule(record)} style={{ color: colors.cyan }}>详情</Button>
           <Popconfirm title="确定删除吗？" onConfirm={() => handleDelete(record.id)}>
-            <Button type="link" danger icon={<DeleteOutlined />}>删除</Button>
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
         </Space>
       ),
@@ -183,14 +191,14 @@ const AccountList: React.FC<AccountListProps> = ({ type, title }) => {
 
   const scheduleColumns = [
     { title: '期数', dataIndex: 'period_number', key: 'period_number' },
-    { title: '金额', dataIndex: 'amount', key: 'amount', render: (val: number) => `￥${val.toLocaleString()}` },
+    { title: '金额', dataIndex: 'amount', key: 'amount', render: (val: number) => <span style={{ color: colors.cyan, fontFamily: 'Monospace' }}>￥{val.toLocaleString()}</span> },
     { title: '应还日期', dataIndex: 'due_date', key: 'due_date' },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Tag color={status === 'paid' ? 'green' : 'orange'}>
+        <Tag color={status === 'paid' ? 'success' : 'warning'} style={{ borderRadius: '2px', border: 'none' }}>
           {status === 'paid' ? '已还' : '待还'}
         </Tag>
       ),
@@ -203,6 +211,7 @@ const AccountList: React.FC<AccountListProps> = ({ type, title }) => {
           type="link" 
           size="small" 
           onClick={() => handleToggleStatus(record.id, record.status)}
+          style={{ color: record.status === 'pending' ? colors.lime : colors.orange }}
         >
           {record.status === 'pending' ? '标记已还' : '撤销已还'}
         </Button>

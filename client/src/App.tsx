@@ -36,17 +36,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
-const AppLayout: React.FC<{ children: React.ReactNode; isDarkMode: boolean; toggleTheme: () => void }> = ({
-  children,
-  isDarkMode,
-  toggleTheme,
-}) => {
-  const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
-  const { logout, username } = useAuth();
-  const navigate = useNavigate();
+const AppLayout: React.FC<{ children: React.ReactNode }> = ({
+    children,
+  }) => {
+    const location = useLocation();
+    const { logout, username } = useAuth();
+    const navigate = useNavigate();
 
-  const handleLogout = () => {
+    const handleLogout = () => {
     logout();
     navigate('/login');
   };
@@ -80,34 +77,75 @@ const AppLayout: React.FC<{ children: React.ReactNode; isDarkMode: boolean; togg
   ];
 
   return (
-    <Layout style={{ minHeight: '100vh', width: '100%' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={(value) => setCollapsed(value)} theme="dark">
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 'bold' }}>
-          {!collapsed ? 'LoanVision 还款管理' : 'LV'}
-        </div>
-        <Menu
-          theme="dark"
-          selectedKeys={[location.pathname]}
-          mode="inline"
-          items={menuItems}
-        />
-      </Sider>
-      <Layout style={{ display: 'flex', flexDirection: 'column' }}>
-        <Header style={{ padding: '0 24px', background: isDarkMode ? '#141414' : '#fff', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderBottom: isDarkMode ? '1px solid #303030' : '1px solid #f0f0f0' }}>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-            <span style={{ color: isDarkMode ? '#fff' : 'rgba(0, 0, 0, 0.88)' }}>
-              你好, {username}
+    <Layout style={{ minHeight: '100vh', width: '100%', background: '#000814' }}>
+      <Layout style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
+        <Header style={{ 
+          padding: '0 16px', 
+          height: '48px',
+          lineHeight: '48px',
+          background: 'rgba(0, 8, 20, 0.6)', 
+          backdropFilter: 'blur(12px)',
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          borderBottom: '1px solid #00d2ff33',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          width: '100%',
+          boxShadow: '0 2px 8px rgba(0, 210, 255, 0.1)'
+        }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 8,
+            cursor: 'pointer'
+          }} onClick={() => navigate('/')}>
+            <div style={{ 
+              width: 24, 
+              height: 24, 
+              background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)', 
+              borderRadius: '4px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: 14,
+              boxShadow: '0 0 10px rgba(0, 210, 255, 0.5)'
+            }}>L</div>
+            <span style={{ 
+              fontSize: 16, 
+              fontWeight: 'bold', 
+              letterSpacing: '1px',
+              color: '#00d2ff' 
+            }}>LoanVision</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>
+              {username}
             </span>
-            <Button type="text" onClick={toggleTheme}>
-              {isDarkMode ? '🌞 浅色' : '🌙 深色'}
-            </Button>
-            <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>
+            <Button 
+              type="text" 
+              size="small"
+              icon={<LogoutOutlined />} 
+              onClick={handleLogout}
+              style={{ color: 'rgba(255,255,255,0.45)' }}
+            >
               退出
             </Button>
           </div>
         </Header>
-        <Content style={{ margin: '24px', flex: 1, overflow: 'initial' }}>
-          <div style={{ padding: 24, minHeight: '100%', background: isDarkMode ? '#141414' : '#fff', borderRadius: 8 }}>
+        <Content style={{ margin: '12px 16px', flex: 1, overflow: 'initial' }}>
+          <div style={{ 
+            padding: '16px', 
+            minHeight: '100%', 
+            background: 'rgba(0, 20, 40, 0.4)', 
+            borderRadius: 8,
+            border: '1px solid rgba(0, 210, 255, 0.1)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          }}>
             {children}
           </div>
         </Content>
@@ -117,20 +155,24 @@ const AppLayout: React.FC<{ children: React.ReactNode; isDarkMode: boolean; togg
 };
 
 const App: React.FC = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
   return (
     <ConfigProvider
       locale={zhCN}
       theme={{
-        algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        algorithm: [theme.darkAlgorithm, theme.compactAlgorithm],
         token: {
-          colorPrimary: '#1890ff',
+          colorPrimary: '#00d2ff', // 科技感的亮蓝色
+          borderRadius: 4, // 更硬朗的直角/小圆角
+          colorBgBase: '#000814', // 深邃的背景色
         },
+        components: {
+          Layout: {
+            headerBg: 'rgba(0, 20, 40, 0.7)',
+          },
+          Card: {
+            borderRadiusLG: 8,
+          }
+        }
       }}
     >
       <AntdApp>
@@ -142,7 +184,7 @@ const App: React.FC = () => {
                 path="/*"
                 element={
                   <ProtectedRoute>
-                    <AppLayout isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
+                    <AppLayout>
                       <Routes>
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/credit-cards" element={<CreditCards />} />

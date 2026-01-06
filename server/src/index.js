@@ -27,17 +27,12 @@ app.use('/api/stats', require('./routes/stats'));
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '../../client/dist');
   
-  // 适配子路径静态资源托管
-  app.use('/loanvision', express.static(distPath));
+  // 静态资源托管
+  app.use(express.static(distPath));
   
-  // 所有非 API 的 /loanvision/* 请求都返回 index.html
-  app.get('/loanvision/*', (req, res) => {
+  // 所有非 API 的请求都返回 index.html
+  app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
-  });
-  
-  // 保持根路径重定向或处理（可选）
-  app.get('/', (req, res) => {
-    res.redirect('/loanvision/');
   });
 } else {
   app.get('/', (req, res) => {
