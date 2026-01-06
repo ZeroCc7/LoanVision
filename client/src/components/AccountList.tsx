@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, DatePicker, Select, Space, Tag, Popconfirm, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import api from '../api/axios';
-import dayjs from 'dayjs';
 
 interface Account {
   id: number;
@@ -70,19 +69,6 @@ const AccountList: React.FC<AccountListProps> = ({ type, title }) => {
     setCurrentAccount(account);
     fetchRepayments(account.id);
     setScheduleModalVisible(true);
-  };
-
-  const handleMarkPaid = async (repaymentId: number) => {
-    try {
-      await api.patch(`/repayments/${repaymentId}`, { status: 'paid' });
-      message.success('标记成功');
-      if (currentAccount) {
-        fetchRepayments(currentAccount.id);
-      }
-      fetchAccounts();
-    } catch (error) {
-      message.error('操作失败');
-    }
   };
 
   const handleToggleStatus = async (repaymentId: number, currentStatus: string) => {
@@ -224,7 +210,7 @@ const AccountList: React.FC<AccountListProps> = ({ type, title }) => {
     },
   ];
 
-  const handleValuesChange = (changedValues: any, allValues: any) => {
+  const handleValuesChange = (_: any, allValues: any) => {
     const { periods, monthly_payment, monthly_interest, repayment_method, principal_amount } = allValues;
     
     if (repayment_method === 'interest_first') {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Typography, List, Switch, Button, Divider } from 'antd';
+import { Card, Typography, List, Button, Divider } from 'antd';
 import { GithubOutlined, UserOutlined, LockOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 

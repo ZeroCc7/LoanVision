@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Row, Col, Card, Statistic, Table, Tag, List, Typography, Button, Space, App, Alert, Badge, Segmented, Divider, theme } from 'antd';
+import { Row, Col, Card, Statistic, Table, Typography, Button, Space, App, Alert, Badge, Segmented, Divider, theme, Tag } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import {
   ComposedChart,
   Line,
@@ -14,12 +15,36 @@ import {
   Pie,
   Legend,
 } from 'recharts';
-import { ArrowUpOutlined, CheckCircleOutlined, ClockCircleOutlined, PayCircleOutlined, CreditCardOutlined, BankOutlined, WarningOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { CreditCardOutlined, BankOutlined, WarningOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+
+interface TrendItem {
+  month: string; 
+  amount: number;
+  interest_first_amount: number;
+  other_amount: number;
+  is_warning: boolean;
+  warning_msg: string;
+  is_future?: boolean;
+}
+
+interface RepaymentItem {
+  id: number;
+  account_id: number;
+  account_name: string;
+  account_type: 'credit_card' | 'commercial_loan';
+  repayment_method: 'equal_installment' | 'interest_first';
+  amount: number;
+  period_number: number;
+  periods: number;
+  due_date: string;
+  status: 'pending' | 'paid';
+  base_monthly_payment: number;
+}
 
 interface DashboardData {
   summary: {
@@ -30,16 +55,9 @@ interface DashboardData {
     active_accounts: number;
     total_items: number;
   };
-  trend: Array<{ 
-    month: string; 
-    amount: number;
-    interest_first_amount: number;
-    other_amount: number;
-    is_warning: boolean;
-    warning_msg: string;
-  }>;
-  upcoming: Array<any>;
-  interestFirstAlerts: Array<any>;
+  trend: TrendItem[];
+  upcoming: any[];
+  interestFirstAlerts: any[];
   interestFirstSummary: {
     total_count: number;
     total_amount: number;
@@ -51,7 +69,6 @@ interface DashboardData {
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const { token } = theme.useToken();
-  const isDark = theme.useToken().theme.id === 1; // 这是一个简便判断，或者可以用 token.colorBgBase 亮度
   
   // 更准确的深色模式判断
   const isDarkMode = token.colorBgContainer === '#141414' || token.colorBgContainer === '#000000' || token.colorBgBase === '#000';
@@ -64,15 +81,21 @@ const Dashboard: React.FC = () => {
     const currentMonth = dayjs().format('YYYY-MM');
     const currentIndex = data.trend.findIndex(t => t.month === currentMonth);
     
+    let result: TrendItem[];
     if (trendRange === 'past') {
       // 过去 12 个月（含当月）
-      return data.trend.slice(0, currentIndex + 1).slice(-12);
+      result = data.trend.slice(0, currentIndex + 1).slice(-12);
     } else {
       // 未来 12 个月（含当月）
-      return data.trend.slice(currentIndex, currentIndex + 13);
+      result = data.trend.slice(currentIndex, currentIndex + 13);
     }
+
+    return result.map(item => ({
+      ...item,
+      is_future: dayjs(item.month).isAfter(currentMonth, 'month')
+    }));
   }, [data?.trend, trendRange]);
-  const [monthlyDetails, setMonthlyDetails] = useState<any>(null);
+  const [monthlyDetails, setMonthlyDetails] = useState<{ items: RepaymentItem[] } | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [filterMethod, setFilterMethod] = useState<string>('all');
 
@@ -118,32 +141,72 @@ const Dashboard: React.FC = () => {
     return <div>加载中...</div>;
   }
 
-  const COLORS = ['#1890ff', '#52c41a', '#faad14', '#f5222d'];
-
-  const pieData = [
-    { name: '已还', value: data.summary.paid_monthly },
-    { name: '待还', value: data.summary.pending_monthly },
-  ];
-
   // 计算饼图双层数据
   const innerPieData = monthlyDetails ? [
-    { name: '先息后本', value: monthlyDetails.items.filter((r: any) => r.repayment_method === 'interest_first').reduce((sum: number, r: any) => sum + r.amount, 0), color: '#ff7a45' },
-    { name: '等额类', value: monthlyDetails.items.filter((r: any) => r.repayment_method === 'equal_installment' && r.account_type === 'commercial_loan').reduce((sum: number, r: any) => sum + r.amount, 0), color: '#1890ff' },
-    { name: '信用卡', value: monthlyDetails.items.filter((r: any) => r.account_type === 'credit_card').reduce((sum: number, r: any) => sum + r.amount, 0), color: '#52c41a' },
+    { name: '先息后本', value: monthlyDetails.items.filter((r: RepaymentItem) => r.repayment_method === 'interest_first').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: '#ff7a45' },
+    { name: '等额类', value: monthlyDetails.items.filter((r: RepaymentItem) => r.repayment_method === 'equal_installment' && r.account_type === 'commercial_loan').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: '#1890ff' },
+    { name: '信用卡', value: monthlyDetails.items.filter((r: RepaymentItem) => r.account_type === 'credit_card').reduce((sum: number, r: RepaymentItem) => sum + r.amount, 0), color: '#52c41a' },
   ].filter(i => i.value > 0) : [];
 
-  const outerPieData = monthlyDetails ? monthlyDetails.items.map((item: any) => ({
+  const outerPieData = monthlyDetails ? monthlyDetails.items.map((item: RepaymentItem) => ({
     name: item.account_name,
     value: item.amount,
     color: item.repayment_method === 'interest_first' ? '#ffbb96' : (item.account_type === 'credit_card' ? '#95de64' : '#69c0ff')
   })) : [];
 
-  const filteredItems = monthlyDetails?.items.filter((item: any) => {
+  const filteredItems = monthlyDetails?.items.filter((item: RepaymentItem) => {
     if (filterMethod === 'all') return true;
     if (filterMethod === 'interest_first') return item.repayment_method === 'interest_first';
     if (filterMethod === 'equal') return item.repayment_method === 'equal_installment';
     return true;
   }) || [];
+
+  const columns: ColumnsType<RepaymentItem> = [
+    { 
+      title: '账目名称', 
+      key: 'account_name',
+      render: (_, record) => (
+        <div>
+          <Text strong>{record.account_name}</Text>
+          {record.repayment_method === 'interest_first' && (
+            <Tag color="orange" style={{ marginLeft: 8 }}>先息后本</Tag>
+          )}
+        </div>
+      )
+    },
+    { 
+      title: '还款金额', 
+      dataIndex: 'amount', 
+      key: 'amount',
+      render: (val, record) => {
+        const isLastPeriod = record.repayment_method === 'interest_first' && record.period_number === record.periods;
+        return (
+          <div>
+            <Text strong>￥{val.toLocaleString()}</Text>
+            <div style={{ fontSize: '11px', color: isDarkMode ? '#8c8c8c' : '#888' }}>
+              {isLastPeriod ? 
+                `(本金${(val - record.base_monthly_payment).toLocaleString()} + 利息${record.base_monthly_payment.toLocaleString()})` : 
+                (record.repayment_method === 'interest_first' ? '(仅利息)' : '')
+              }
+            </div>
+          </div>
+        );
+      }
+    },
+    { 
+      title: '状态', 
+      dataIndex: 'status', 
+      key: 'status',
+      render: (status) => <Tag color={status === 'paid' ? 'green' : 'orange'}>{status === 'paid' ? '已还' : '待还'}</Tag>
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_, record) => record.status === 'pending' && (
+        <Button type="link" size="small" onClick={() => handleMarkPaid(record.id)}>标记已还</Button>
+      )
+    }
+  ];
 
   return (
     <div>
@@ -265,7 +328,7 @@ const Dashboard: React.FC = () => {
                   />
                   <YAxis stroke={isDarkMode ? '#8c8c8c' : '#595959'} tick={{ fontSize: 12 }} />
                   <Tooltip 
-                    formatter={(value: number) => `￥${value.toLocaleString()}`}
+                    formatter={(value: any) => `￥${Number(value).toLocaleString()}`}
                     contentStyle={{ 
                       backgroundColor: isDarkMode ? '#1f1f1f' : '#fff', 
                       borderColor: isDarkMode ? '#434343' : '#ccc',
@@ -275,7 +338,7 @@ const Dashboard: React.FC = () => {
                     }}
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
-                        const d = payload[0].payload;
+                        const d = payload[0].payload as TrendItem;
                         const isCurrent = label === dayjs().format('YYYY-MM');
                         return (
                           <div style={{ 
@@ -367,13 +430,13 @@ const Dashboard: React.FC = () => {
                     innerRadius={70}
                     outerRadius={100}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${(Number(percent || 0) * 100).toFixed(0)}%`}
                   >
                     {outerPieData.map((entry: any, index: number) => (
                       <Cell key={`outer-cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => `￥${value.toLocaleString()}`} />
+                  <Tooltip formatter={(value: any) => `￥${Number(value).toLocaleString()}`} />
                   <Legend verticalAlign="bottom" height={36}/>
                 </PieChart>
               </ResponsiveContainer>
@@ -406,52 +469,7 @@ const Dashboard: React.FC = () => {
               rowKey="id"
               pagination={false}
               size="small"
-              columns={[
-                { 
-                  title: '账目名称', 
-                  key: 'account_name',
-                  render: (_, record) => (
-                    <div>
-                      <Text strong>{record.account_name}</Text>
-                      {record.repayment_method === 'interest_first' && (
-                        <Tag color="orange" style={{ marginLeft: 8 }}>先息后本</Tag>
-                      )}
-                    </div>
-                  )
-                },
-                { 
-                  title: '还款金额', 
-                  dataIndex: 'amount', 
-                  key: 'amount',
-                  render: (val, record) => {
-                    const isLastPeriod = record.repayment_method === 'interest_first' && record.period_number === record.periods;
-                    return (
-                      <div>
-                        <Text strong>￥{val.toLocaleString()}</Text>
-                        <div style={{ fontSize: '11px', color: isDarkMode ? '#8c8c8c' : '#888' }}>
-                          {isLastPeriod ? 
-                            `(本金${(val - record.base_monthly_payment).toLocaleString()} + 利息${record.base_monthly_payment.toLocaleString()})` : 
-                            (record.repayment_method === 'interest_first' ? '(仅利息)' : '')
-                          }
-                        </div>
-                      </div>
-                    );
-                  }
-                },
-                { 
-                  title: '状态', 
-                  dataIndex: 'status', 
-                  key: 'status',
-                  render: (status) => <Tag color={status === 'paid' ? 'green' : 'orange'}>{status === 'paid' ? '已还' : '待还'}</Tag>
-                },
-                {
-                  title: '操作',
-                  key: 'action',
-                  render: (_, record) => record.status === 'pending' && (
-                    <Button type="link" size="small" onClick={() => handleMarkPaid(record.id)}>标记已还</Button>
-                  )
-                }
-              ]}
+              columns={columns}
               rowClassName={(record) => record.repayment_method === 'interest_first' ? 'interest-first-row' : ''}
             />
           </Card>
