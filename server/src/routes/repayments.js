@@ -79,7 +79,7 @@ router.get('/monthly/:yearMonth', (req, res) => {
 
   try {
     const repayments = db.prepare(`
-      SELECT r.*, a.name as account_name, a.type as account_type
+      SELECT r.*, a.name as account_name, a.type as account_type, a.repayment_method, a.periods, a.monthly_payment as base_monthly_payment
       FROM repayments r
       JOIN accounts a ON r.account_id = a.id
       WHERE a.user_id = ? AND r.due_date BETWEEN ? AND ?
