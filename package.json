@@ -1,0 +1,17 @@
+{
+  "name": "loanvision",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "cd server && npm start",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "create-user": "cd server && npm run create-user",
+    "prod": "set NODE_ENV=production && npm run build && cd server && npm start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
