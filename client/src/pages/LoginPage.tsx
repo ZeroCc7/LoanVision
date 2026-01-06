@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, Typography, Tabs, App, theme } from 'antd';
+import { Form, Input, Button, Card, Typography, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,6 @@ const { Title, Text } = Typography;
 
 const LoginPage: React.FC = () => {
   const { message } = App.useApp();
-  const { token } = theme.useToken();
   const [loading, setLoading] = useState(false);
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();

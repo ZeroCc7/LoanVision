@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Button, Space, App, Alert, Badge, Segmented, Divider, theme, Tag, Modal, Form, Input, InputNumber, DatePicker, Select } from 'antd';
+import { Row, Col, Card, Statistic, Table, Typography, Button, App, Alert, Badge, Segmented, theme, Tag, Modal, Form, Input, InputNumber, DatePicker, Select } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   ComposedChart,
@@ -16,7 +16,7 @@ import {
   Legend,
 } from 'recharts';
 import { CreditCardOutlined, BankOutlined, WarningOutlined, PlusOutlined, HistoryOutlined, SettingOutlined } from '@ant-design/icons';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import dayjs from 'dayjs';
 
@@ -69,7 +69,6 @@ interface DashboardData {
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   
   // 固定为深色科技感模式
   const isDarkMode = true;
@@ -458,7 +457,7 @@ const Dashboard: React.FC = () => {
                   margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   onClick={(data) => {
                     if (data && data.activeLabel) {
-                      setSelectedMonth(data.activeLabel);
+                      setSelectedMonth(String(data.activeLabel));
                     }
                   }}
                 >

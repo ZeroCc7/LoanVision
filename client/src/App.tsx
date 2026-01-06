@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ConfigProvider, Layout, theme, Menu, Button, App as AntdApp } from 'antd';
+import React from 'react';
+import { ConfigProvider, Layout, theme, Button, App as AntdApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import 'dayjs/locale/zh-cn';
 import dayjs from 'dayjs';
@@ -22,7 +22,7 @@ import Dashboard from './pages/Dashboard';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
 
-const { Header, Content, Sider } = Layout;
+const { Header, Content } = Layout;
 
 // Placeholder Pages
 const CreditCards = () => <AccountList type="credit_card" title="信用卡分期" />;
@@ -39,42 +39,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({
     children,
   }) => {
-    const location = useLocation();
-    const { logout, username } = useAuth();
+    const { logout } = useAuth();
     const navigate = useNavigate();
 
     const handleLogout = () => {
     logout();
     navigate('/login');
   };
-
-  const menuItems = [
-    {
-      key: '/',
-      icon: <DashboardOutlined />,
-      label: <Link to="/">首页</Link>,
-    },
-    {
-      key: '/credit-cards',
-      icon: <CreditCardOutlined />,
-      label: <Link to="/credit-cards">信用卡分期</Link>,
-    },
-    {
-      key: '/loans',
-      icon: <BankOutlined />,
-      label: <Link to="/loans">商业贷款</Link>,
-    },
-    {
-      key: '/history',
-      icon: <HistoryOutlined />,
-      label: <Link to="/history">还款历史</Link>,
-    },
-    {
-      key: '/settings',
-      icon: <SettingOutlined />,
-      label: <Link to="/settings">设置</Link>,
-    },
-  ];
 
   return (
     <Layout style={{ minHeight: '100vh', width: '100%', background: '#000814' }}>

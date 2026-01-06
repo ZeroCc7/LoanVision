@@ -31,7 +31,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
   
   // 所有非 API 的请求都返回 index.html
-  app.get('*', (req, res) => {
+  app.get('*path', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
