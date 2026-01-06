@@ -5,13 +5,8 @@ import 'dayjs/locale/zh-cn';
 import dayjs from 'dayjs';
 
 dayjs.locale('zh-cn');
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import {
-  DashboardOutlined,
-  CreditCardOutlined,
-  BankOutlined,
-  HistoryOutlined,
-  SettingOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -39,7 +34,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({
     children,
   }) => {
-    const { logout } = useAuth();
+    const { logout, username } = useAuth();
     const navigate = useNavigate();
 
     const handleLogout = () => {
