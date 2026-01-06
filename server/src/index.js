@@ -31,7 +31,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use('/loanvision', express.static(distPath));
   
   // 所有非 API 的 /loanvision/* 请求都返回 index.html
-  app.get('/loanvision/:path*', (req, res) => {
+  app.get('/loanvision/*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
   
