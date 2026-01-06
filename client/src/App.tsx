@@ -83,7 +83,7 @@ const AppLayout: React.FC<{ children: React.ReactNode; isDarkMode: boolean; togg
     <Layout style={{ minHeight: '100vh', width: '100%' }}>
       <Sider collapsible collapsed={collapsed} onCollapse={(value) => setCollapsed(value)} theme="dark">
         <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 'bold' }}>
-          {!collapsed ? 'LoanVision' : 'LV'}
+          {!collapsed ? 'LoanVision 还款管理' : 'LV'}
         </div>
         <Menu
           theme="dark"

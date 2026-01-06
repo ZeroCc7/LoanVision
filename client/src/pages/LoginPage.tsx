@@ -79,7 +79,7 @@ const LoginPage: React.FC = () => {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f0f2f5' }}>
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={2}>LoanVision</Title>
+          <Title level={2}>LoanVision 还款管理</Title>
           <Typography.Text type="secondary">您的个人贷款记账助手</Typography.Text>
         </div>
         <Tabs defaultActiveKey="login" items={items} centered />

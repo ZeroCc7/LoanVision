@@ -66,35 +66,53 @@ npm run create-user
 
 ---
 
-## 3. 服务器部署流程 (单体部署)
+## 3. 生产环境部署 (基于 Git)
 
-本项目支持单体部署模式，即后端 Express 服务同时托管前端生成的静态文件。
+本项目支持单体部署模式，即后端 Express 服务同时托管前端生成的静态文件。建议使用 Git 进行版本管理和部署。
 
-### 第一步：前端打包
-在项目根目录下执行打包命令：
+### 第一步：克隆项目
+在服务器目标目录下执行：
 ```bash
-npm run build
+git clone <项目仓库地址>
+cd LoanVision
 ```
-这将在 `client/dist` 目录下生成静态文件。
 
-### 第二步：服务器环境配置
-1. 将整个项目上传至服务器。
-2. 在服务器上执行 `npm install` 安装必要依赖。
-3. 确保服务器端的 `server/.env` 文件配置如下：
+### 第二步：安装依赖
+分别安装根目录、后端和前端的依赖包：
+```bash
+npm install
+cd server && npm install
+cd ../client && npm install
+cd ..
+```
+
+### 第三步：配置环境变量
+1. 在 `server` 目录下创建 `.env` 文件：
+   ```bash
+   touch server/.env
+   ```
+2. 编辑 `server/.env`，确保生产环境配置正确：
    ```env
    PORT=5000
-   JWT_SECRET=your_production_secret
+   JWT_SECRET=your_production_secret_key
    DB_PATH=./src/db/loanvision.db
    NODE_ENV=production
    ```
 
-### 第三步：使用 PM2 启动服务
-根目录下已配置 `ecosystem.config.js`，直接运行：
+### 第四步：前端打包
+在项目根目录下执行打包命令：
+```bash
+npm run build
+```
+这将在 `client/dist` 目录下生成静态文件，供后端托管。
+
+### 第五步：使用 PM2 启动服务
+确保已安装 PM2 (`npm install pm2 -g`)，然后在根目录下运行：
 ```bash
 pm2 start ecosystem.config.js --env production
 ```
 
-### 第四步：保存 PM2 状态 (可选)
+### 第六步：保存 PM2 状态
 为了确保服务器重启后服务能自动恢复：
 ```bash
 pm2 save
@@ -103,7 +121,53 @@ pm2 startup
 
 ---
 
-## 4. 常见问题排查
+## 4. 版本更新步骤
+
+当项目代码有更新时，请按照以下步骤在服务器上进行更新：
+
+### 第一步：拉取最新代码
+```bash
+git pull
+```
+
+### 第二步：更新依赖 (如有必要)
+如果 `package.json` 有变动，请重新安装依赖：
+```bash
+# 更新后端依赖
+cd server && npm install
+# 更新前端依赖
+cd ../client && npm install
+cd ..
+```
+
+### 第三步：重新编译前端
+由于后端托管的是 `client/dist` 目录，每次前端代码更新后都必须重新打包：
+```bash
+npm run build
+```
+
+### 第四步：重启 PM2 服务
+为了使更新生效，需要重启或重载 PM2 进程：
+```bash
+# 推荐使用 reload 实现平滑重启
+pm2 reload loan-vision
+```
+
+---
+
+## 5. 注意事项
+
+- **子路径部署 (Nginx)**：如果使用子路径（如 `/loanvision/`）访问，请确保：
+  1. 前端 `vite.config.ts` 中的 `base` 设置为 `/loanvision/`。
+  2. 后端 `server/src/index.js` 中的静态资源托管路径包含 `/loanvision` 前缀。
+  3. Nginx 配置中的 `proxy_pass` 结尾带 `/`，如 `proxy_pass http://127.0.0.1:5001/;`。
+- **数据库备份**：SQLite 数据库文件位于 `server/src/db/loanvision.db`。在进行重大更新前，建议备份此文件。
+- **端口冲突**：如果 5000 端口被占用，请在 `server/.env` 中修改 `PORT`。
+- **权限问题**：确保运行 PM2 的用户对项目目录有读写权限，特别是数据库文件所在目录。
+
+---
+
+## 6. 常见问题排查
 
 ### 1. 数据库权限
 由于使用了 SQLite，请确保运行服务的用户对 `server/src/db/` 目录及其中的 `.db` 文件拥有读写权限。
@@ -118,7 +182,7 @@ pm2 startup
 
 ---
 
-## 5. 技术栈概览
+## 7. 技术栈概览
 - **前端**: React 18, Vite, Ant Design 5.x, Recharts.
 - **后端**: Node.js, Express, SQLite (better-sqlite3).
 - **认证**: JWT (JSON Web Token).

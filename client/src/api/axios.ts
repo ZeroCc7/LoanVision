@@ -26,7 +26,9 @@ instance.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
-      window.location.href = '/login';
+      // 适配子路径跳转
+      const base = import.meta.env.BASE_URL || '/';
+      window.location.href = base + 'login';
     }
     return Promise.reject(error);
   }
