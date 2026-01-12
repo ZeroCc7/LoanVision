@@ -54,6 +54,7 @@ interface DashboardData {
     total_remaining: number;
     active_accounts: number;
     total_items: number;
+    total_overdue?: number;
   };
   trend: TrendItem[];
   upcoming: any[];
@@ -70,6 +71,10 @@ const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   
+  // 处理响应式数据
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 576;
+  const isTablet = typeof window !== 'undefined' && window.innerWidth >= 576 && window.innerWidth < 992;
+
   // 固定为深色科技感模式
   const isDarkMode = true;
   const [data, setData] = useState<DashboardData | null>(null);
@@ -78,6 +83,14 @@ const Dashboard: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
   const [isQuickRecordModalVisible, setIsQuickRecordModalVisible] = useState(false);
   const [form] = Form.useForm();
+
+  const summary = useMemo(() => data?.summary || {
+    total_monthly: 0,
+    paid_monthly: 0,
+    pending_monthly: 0,
+    total_remaining: 0,
+    total_overdue: 0
+  }, [data]);
 
   // 定义霓虹特效颜色
   const colors = {
@@ -205,6 +218,104 @@ const Dashboard: React.FC = () => {
     });
   }, [monthlyDetails?.items, filterMethod]);
 
+  const columns: ColumnsType<RepaymentItem> = useMemo(() => [
+    {
+      title: '还款日期',
+      dataIndex: 'due_date',
+      key: 'due_date',
+      width: isMobile ? 100 : 110,
+      render: (date: string) => dayjs(date).format('MM-DD'),
+      sorter: (a: any, b: any) => dayjs(a.due_date).unix() - dayjs(b.due_date).unix(),
+    },
+    {
+      title: '账目名称',
+      key: 'account_name',
+      ellipsis: true,
+      width: isMobile ? 100 : 120,
+      render: (_, record) => (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontWeight: 'bold', color: 'rgba(255,255,255,0.85)' }}>{record.account_name}</span>
+          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)' }}>{record.account_type === 'credit_card' ? '信用卡' : '商贷'}</span>
+        </div>
+      )
+    },
+    {
+      title: '金额',
+      dataIndex: 'amount',
+      key: 'amount',
+      width: isMobile ? 80 : 100,
+      render: (amount: number) => (
+        <span style={{ color: colors.cyan, fontWeight: 'bold', fontFamily: 'Monospace' }}>
+          {amount.toLocaleString()}
+        </span>
+      ),
+      sorter: (a: any, b: any) => a.amount - b.amount,
+    },
+    {
+      title: '期数',
+      dataIndex: 'period_number',
+      key: 'period_number',
+      width: 70,
+      render: (val, record) => (
+        <span style={{ fontSize: '12px' }}>{val}/{record.periods}</span>
+      )
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: isMobile ? 70 : 90,
+      render: (status: string) => {
+        const config = {
+          pending: { color: 'gold', text: '待还' },
+          paid: { color: 'green', text: '已还' },
+          overdue: { color: 'red', text: '逾期' },
+        }[status as 'pending' | 'paid' | 'overdue'] || { color: 'default', text: status };
+        return <Tag color={config.color} style={{ margin: 0, fontSize: '11px' }}>{config.text}</Tag>;
+      },
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: isMobile ? 60 : 80,
+      fixed: 'right',
+      render: (_, record) => (
+        <Button 
+          type="link" 
+          size="small" 
+          onClick={() => handleMarkPaid(record.id)}
+          disabled={record.status === 'paid'}
+          style={{ padding: 0 }}
+        >
+          {record.status === 'paid' ? '已清' : '还款'}
+        </Button>
+      ),
+    },
+  ], [isMobile, colors.cyan]);
+
+  // 汇总卡片组件，适配移动端
+  const SummaryCard = ({ title, value, icon, color, suffix = '', precision = 2, bgGradient }: any) => (
+    <Card 
+      variant="borderless" 
+      size="small"
+      style={{ 
+        background: bgGradient,
+        borderRadius: '8px',
+        border: `1px solid ${color}4d`,
+        boxShadow: `0 0 15px ${color}33`
+      }}
+      bodyStyle={{ padding: isMobile ? '12px' : '16px' }}
+    >
+      <Statistic
+        title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>{icon}{title}</span>}
+        value={value}
+        precision={precision}
+        prefix={<span style={{ color, fontSize: 14 }}>￥</span>}
+        styles={{ content: { color, fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${color}66` } }}
+      />
+    </Card>
+  );
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', flexDirection: 'column', gap: 16 }}>
@@ -231,56 +342,16 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  const columns: ColumnsType<RepaymentItem> = [
-    { 
-      title: '账目名称', 
-      key: 'account_name',
-      render: (_, record) => (
-        <div>
-          <Text strong>{record.account_name}</Text>
-          {record.repayment_method === 'interest_first' && (
-            <Tag color="orange" style={{ marginLeft: 8 }}>先息后本</Tag>
-          )}
-        </div>
-      )
-    },
-    { 
-      title: '还款金额', 
-      dataIndex: 'amount', 
-      key: 'amount',
-      render: (val, record) => {
-        const isLastPeriod = record.repayment_method === 'interest_first' && record.period_number === record.periods;
-        return (
-          <div>
-            <Text strong style={{ color: colors.cyan }}>￥{val.toLocaleString()}</Text>
-            <div style={{ fontSize: '11px', color: '#8c8c8c' }}>
-              {isLastPeriod ? 
-                `(本金${(val - record.base_monthly_payment).toLocaleString()} + 利息${record.base_monthly_payment.toLocaleString()})` : 
-                (record.repayment_method === 'interest_first' ? '(仅利息)' : '')
-              }
-            </div>
-          </div>
-        );
-      }
-    },
-    { 
-      title: '状态', 
-      dataIndex: 'status', 
-      key: 'status',
-      render: (status) => <Tag color={status === 'paid' ? 'green' : 'orange'}>{status === 'paid' ? '已还' : '待还'}</Tag>
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_, record) => record.status === 'pending' && (
-        <Button type="link" size="small" onClick={() => handleMarkPaid(record.id)}>标记已还</Button>
-      )
-    }
-  ];
-
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: isMobile ? '4px' : '0' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: 16,
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Title level={4} style={{ margin: 0, letterSpacing: '1px' }}>数据概览</Title>
           <Tag color="blue" style={{ borderRadius: '2px', background: 'rgba(0, 210, 255, 0.1)', border: '1px solid rgba(0, 210, 255, 0.3)', color: colors.cyan }}>
@@ -292,7 +363,11 @@ const Dashboard: React.FC = () => {
           icon={<PlusOutlined />} 
           size="middle"
           onClick={() => setIsQuickRecordModalVisible(true)}
-          style={{ borderRadius: '4px', boxShadow: '0 0 15px rgba(0, 210, 255, 0.3)' }}
+          style={{ 
+            borderRadius: '4px', 
+            boxShadow: '0 0 15px rgba(0, 210, 255, 0.3)',
+            width: isMobile ? '100%' : 'auto'
+          }}
         >
           快捷记录
         </Button>
@@ -348,85 +423,41 @@ const Dashboard: React.FC = () => {
 
       {/* Summary Cards */}
       <Row gutter={[8, 8]}>
-        <Col xs={24} sm={12} md={6}>
-          <Card 
-            variant="borderless" 
-            size="small"
-            style={{ 
-              background: 'linear-gradient(135deg, #001529 0%, #003366 100%)',
-              borderRadius: '8px',
-              border: '1px solid rgba(0, 210, 255, 0.3)',
-              boxShadow: '0 0 15px rgba(0, 210, 255, 0.2)'
-            }}
-          >
-            <Statistic
-              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>本月总应还</span>}
-              value={data.summary.total_monthly}
-              precision={2}
-              prefix={<span style={{ color: colors.cyan, fontSize: 14 }}>￥</span>}
-              styles={{ content: { color: colors.cyan, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.cyan}66` } }}
-            />
-          </Card>
+        <Col xs={12} sm={12} md={6}>
+          <SummaryCard 
+            title="本月总应还" 
+            value={data.summary.total_monthly} 
+            icon={<CreditCardOutlined />} 
+            color={colors.cyan} 
+            bgGradient="linear-gradient(135deg, #001529 0%, #003366 100%)"
+          />
         </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card 
-            variant="borderless"
-            size="small"
-            style={{ 
-              background: 'linear-gradient(135deg, #092b00 0%, #135200 100%)',
-              borderRadius: '8px',
-              border: '1px solid rgba(57, 255, 20, 0.3)',
-              boxShadow: '0 0 15px rgba(57, 255, 20, 0.2)'
-            }}
-          >
-            <Statistic
-              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>本月已还</span>}
-              value={data.summary.paid_monthly}
-              precision={2}
-              prefix={<span style={{ color: colors.lime, fontSize: 14 }}>￥</span>}
-              styles={{ content: { color: colors.lime, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.lime}66` } }}
-            />
-          </Card>
+        <Col xs={12} sm={12} md={6}>
+          <SummaryCard 
+            title="本月已还" 
+            value={data.summary.paid_monthly} 
+            icon={<BankOutlined />} 
+            color={colors.lime} 
+            bgGradient="linear-gradient(135deg, #092b00 0%, #135200 100%)"
+          />
         </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card 
-            variant="borderless"
-            size="small"
-            style={{ 
-              background: 'linear-gradient(135deg, #442a00 0%, #874d00 100%)',
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 157, 0, 0.3)',
-              boxShadow: '0 0 15px rgba(255, 157, 0, 0.2)'
-            }}
-          >
-            <Statistic
-              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>本月待还</span>}
-              value={data.summary.pending_monthly}
-              precision={2}
-              prefix={<span style={{ color: colors.orange, fontSize: 14 }}>￥</span>}
-              styles={{ content: { color: colors.orange, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.orange}66` } }}
-            />
-          </Card>
+        <Col xs={12} sm={12} md={6}>
+          <SummaryCard 
+            title="本月待还" 
+            value={data.summary.pending_monthly} 
+            icon={<WarningOutlined />} 
+            color={colors.orange} 
+            bgGradient="linear-gradient(135deg, #442a00 0%, #874d00 100%)"
+          />
         </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card 
-            variant="borderless"
-            size="small"
-            style={{ 
-              background: 'linear-gradient(135deg, #430000 0%, #820000 100%)',
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 77, 79, 0.3)',
-              boxShadow: '0 0 15px rgba(255, 77, 79, 0.2)'
-            }}
-          >
-            <Statistic
-              title={<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>总剩余待还</span>}
-              value={data.summary.total_remaining}
-              precision={2}
-              prefix={<span style={{ color: colors.red, fontSize: 14 }}>￥</span>}
-              styles={{ content: { color: colors.red, fontSize: '20px', fontWeight: 'bold', fontFamily: 'Monospace', textShadow: `0 0 10px ${colors.red}66` } }}
-            />
-          </Card>
+        <Col xs={12} sm={12} md={6}>
+          <SummaryCard 
+            title="逾期总额" 
+            value={data.summary.total_overdue || 0} 
+            icon={<HistoryOutlined />} 
+            color={colors.red} 
+            bgGradient="linear-gradient(135deg, #430000 0%, #820000 100%)"
+          />
         </Col>
       </Row>
 
@@ -434,27 +465,33 @@ const Dashboard: React.FC = () => {
       <Row gutter={[8, 8]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={16}>
           <Card 
-            title={<span style={{ fontSize: 14 }}>还款趋势分析</span>}
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ fontSize: isMobile ? 14 : 16 }}>
+                  <HistoryOutlined /> 还款趋势分析
+                </span>
+                <Segmented 
+                  size="small"
+                  options={[
+                    { label: '过去', value: 'past' },
+                    { label: '未来', value: 'future' }
+                  ]}
+                  value={trendRange}
+                  onChange={(value) => setTrendRange(value as string)}
+                  style={{ background: 'rgba(0, 210, 255, 0.1)', color: colors.cyan }}
+                />
+              </div>
+            }
             variant="borderless" 
             size="small"
             style={{ height: '100%', background: isDarkMode ? 'rgba(0, 20, 40, 0.2)' : '#fff' }}
-            extra={
-              <Segmented 
-                size="small"
-                options={[
-                  { label: '过去', value: 'past' },
-                  { label: '未来', value: 'future' }
-                ]} 
-                value={trendRange}
-                onChange={(value) => setTrendRange(value as string)}
-              />
-            }
+            bodyStyle={{ padding: isMobile ? '8px' : '16px' }}
           >
-            <div style={{ height: 280, width: '100%', minHeight: 280 }}>
+            <div style={{ height: isMobile ? 220 : 280, width: '100%', minHeight: isMobile ? 220 : 280 }}>
               <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <ComposedChart 
                   data={filteredTrendData} 
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  margin={{ top: 10, right: 10, left: isMobile ? -30 : -20, bottom: 0 }}
                   onClick={(data) => {
                     if (data && data.activeLabel) {
                       setSelectedMonth(String(data.activeLabel));
@@ -583,12 +620,22 @@ const Dashboard: React.FC = () => {
         </Col>
         <Col xs={24} lg={8}>
           <Card 
-            title={<span style={{ fontSize: 14 }}>{selectedMonth} 构成分析</span>} 
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ color: colors.magenta, fontSize: isMobile ? 14 : 16 }}>
+                  <CreditCardOutlined /> {selectedMonth} 构成分析
+                </span>
+                <Tag color="blue" style={{ margin: 0 }}>
+                  共 {outerPieData.length} 项
+                </Tag>
+              </div>
+            }
             variant="borderless" 
             size="small" 
             style={{ height: '100%', background: isDarkMode ? 'rgba(0, 20, 40, 0.2)' : '#fff' }}
+            bodyStyle={{ padding: isMobile ? '8px' : '16px' }}
           >
-            <div style={{ height: 280, minHeight: 280 }}>
+            <div style={{ height: isMobile ? 240 : 280, width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%" debounce={100}>
                 <PieChart>
                   <defs>
@@ -600,9 +647,11 @@ const Dashboard: React.FC = () => {
                   <Pie
                     data={innerPieData}
                     innerRadius={0}
-                    outerRadius={50}
+                    outerRadius={isMobile ? 40 : 50}
                     dataKey="value"
                     stroke="none"
+                    cx="50%"
+                    cy="45%"
                   >
                     {innerPieData.map((entry: any, index: number) => (
                       <Cell key={`inner-cell-${index}`} fill={entry.color} fillOpacity={0.8} filter="url(#neonGlowPie)" />
@@ -610,12 +659,14 @@ const Dashboard: React.FC = () => {
                   </Pie>
                   <Pie
                     data={outerPieData}
-                    innerRadius={60}
-                    outerRadius={85}
+                    innerRadius={isMobile ? 50 : 60}
+                    outerRadius={isMobile ? 70 : 85}
                     dataKey="value"
                     label={({ percent }) => `${(Number(percent || 0) * 100).toFixed(0)}%`}
                     labelLine={false}
                     stroke="none"
+                    cx="50%"
+                    cy="45%"
                   >
                     {outerPieData.map((entry: any, index: number) => (
                       <Cell key={`outer-cell-${index}`} fill={entry.color} fillOpacity={0.6} filter="url(#neonGlowPie)" />
@@ -633,6 +684,12 @@ const Dashboard: React.FC = () => {
                     }}
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: 'rgba(255, 255, 255, 0.7)', marginBottom: '4px', fontWeight: 'bold' }}
+                  />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={isMobile ? 60 : 36}
+                    iconType="circle"
+                    formatter={(value) => <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: isMobile ? '11px' : '12px' }}>{value}</span>}
                   />
                 </PieChart>
               </ResponsiveContainer>

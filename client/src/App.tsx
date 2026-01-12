@@ -47,63 +47,54 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({
       <Layout style={{ display: 'flex', flexDirection: 'column', background: 'transparent' }}>
         <Header style={{ 
           padding: '0 16px', 
-          height: '48px',
-          lineHeight: '48px',
-          background: 'rgba(0, 8, 20, 0.6)', 
-          backdropFilter: 'blur(12px)',
+          background: 'rgba(0, 20, 40, 0.7)', 
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(0, 210, 255, 0.2)',
           display: 'flex', 
-          justifyContent: 'space-between', 
           alignItems: 'center', 
-          borderBottom: '1px solid #00d2ff33',
+          justifyContent: 'space-between',
           position: 'sticky',
           top: 0,
-          zIndex: 10,
-          width: '100%',
-          boxShadow: '0 2px 8px rgba(0, 210, 255, 0.1)'
+          zIndex: 1000,
+          width: '100%'
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 8,
-            cursor: 'pointer'
-          }} onClick={() => navigate('/')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigate('/')}>
             <div style={{ 
-              width: 24, 
-              height: 24, 
-              background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)', 
-              borderRadius: '4px', 
-              display: 'flex', 
-              alignItems: 'center', 
+              width: '32px', 
+              height: '32px', 
+              background: 'linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'center',
+              boxShadow: '0 0 15px rgba(0, 210, 255, 0.5)',
               color: 'white',
               fontWeight: 'bold',
-              fontSize: 14,
-              boxShadow: '0 0 10px rgba(0, 210, 255, 0.5)'
+              fontSize: 18
             }}>L</div>
             <span style={{ 
-              fontSize: 16, 
+              fontSize: 'clamp(14px, 4vw, 20px)', 
               fontWeight: 'bold', 
               letterSpacing: '1px',
               color: '#00d2ff' 
             }}>LoanVision</span>
           </div>
-
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>
-              {username}
-            </span>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '14px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ marginRight: '4px', opacity: 0.6 }}>用户:</span>
+              <span style={{ color: '#00d2ff', fontWeight: 'bold' }}>{username}</span>
+            </div>
             <Button 
               type="text" 
-              size="small"
               icon={<LogoutOutlined />} 
               onClick={handleLogout}
-              style={{ color: 'rgba(255,255,255,0.45)' }}
-            >
-              退出
-            </Button>
+              style={{ color: 'rgba(255,255,255,0.65)' }}
+              className="hover-neon-red"
+            />
           </div>
         </Header>
-        <Content style={{ margin: '12px 16px', flex: 1, overflow: 'initial' }}>
+        <Content style={{ padding: '16px', minHeight: 'calc(100vh - 64px)' }}>
           <div style={{ 
             padding: '16px', 
             minHeight: '100%', 
@@ -115,6 +106,27 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({
             {children}
           </div>
         </Content>
+        
+        <style dangerouslySetInnerHTML={{ __html: `
+          .hover-neon-red:hover {
+            color: #ff4d4f !important;
+            text-shadow: 0 0 8px rgba(255, 77, 79, 0.8);
+          }
+          @media (max-width: 576px) {
+            .ant-layout-content {
+              padding: 12px !important;
+            }
+            .ant-card-body {
+              padding: 12px !important;
+            }
+            .ant-statistic-title {
+              font-size: 12px !important;
+            }
+            .ant-statistic-content {
+              font-size: 20px !important;
+            }
+          }
+        `}} />
       </Layout>
     </Layout>
   );
