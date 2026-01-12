@@ -20,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 interface TrendItem {
   month: string; 
@@ -73,7 +73,6 @@ const Dashboard: React.FC = () => {
   
   // 处理响应式数据
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 576;
-  const isTablet = typeof window !== 'undefined' && window.innerWidth >= 576 && window.innerWidth < 992;
 
   // 固定为深色科技感模式
   const isDarkMode = true;
@@ -83,14 +82,6 @@ const Dashboard: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
   const [isQuickRecordModalVisible, setIsQuickRecordModalVisible] = useState(false);
   const [form] = Form.useForm();
-
-  const summary = useMemo(() => data?.summary || {
-    total_monthly: 0,
-    paid_monthly: 0,
-    pending_monthly: 0,
-    total_remaining: 0,
-    total_overdue: 0
-  }, [data]);
 
   // 定义霓虹特效颜色
   const colors = {
@@ -294,7 +285,7 @@ const Dashboard: React.FC = () => {
   ], [isMobile, colors.cyan]);
 
   // 汇总卡片组件，适配移动端
-  const SummaryCard = ({ title, value, icon, color, suffix = '', precision = 2, bgGradient }: any) => (
+  const SummaryCard = ({ title, value, icon, color, precision = 2, bgGradient }: any) => (
     <Card 
       variant="borderless" 
       size="small"
