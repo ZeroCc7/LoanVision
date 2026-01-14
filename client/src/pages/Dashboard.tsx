@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Row, Col, Card, Statistic, Table, Typography, Button, App, Alert, Badge, Segmented, Tag, Modal, Form, Input, InputNumber, DatePicker, Select } from 'antd';
+import { Row, Col, Card, Statistic, Table, Typography, Button, App, Alert, Badge, Segmented, Tag, Modal, Form, Input, InputNumber, DatePicker, Select, Calendar } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   ComposedChart,
@@ -15,7 +15,7 @@ import {
   Pie,
   Legend,
 } from 'recharts';
-import { CreditCardOutlined, BankOutlined, WarningOutlined, PlusOutlined, HistoryOutlined, SettingOutlined } from '@ant-design/icons';
+import { CreditCardOutlined, BankOutlined, WarningOutlined, PlusOutlined, HistoryOutlined, SettingOutlined, UnorderedListOutlined, CalendarOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import dayjs from 'dayjs';
@@ -81,6 +81,7 @@ const Dashboard: React.FC = () => {
   const [trendRange, setTrendRange] = useState<string>('future');
   const [selectedMonth, setSelectedMonth] = useState<string>(dayjs().format('YYYY-MM'));
   const [isQuickRecordModalVisible, setIsQuickRecordModalVisible] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [form] = Form.useForm();
 
   // 定义霓虹特效颜色
@@ -134,7 +135,17 @@ const Dashboard: React.FC = () => {
 
   const handleQuickRecord = async (values: any) => {
     try {
-      await api.post('/accounts', values);
+      const { total_amount, periods, start_date } = values;
+      // 简单计算每月还款额：总额 / 期数
+      const monthly_payment = total_amount / periods;
+      
+      const payload = {
+        ...values,
+        monthly_payment,
+        start_date: start_date.format('YYYY-MM-DD')
+      };
+
+      await api.post('/accounts', payload);
       message.success('记录成功');
       setIsQuickRecordModalVisible(false);
       form.resetFields();
@@ -698,28 +709,75 @@ const Dashboard: React.FC = () => {
             size="small"
             style={{ background: isDarkMode ? 'rgba(0, 20, 40, 0.2)' : '#fff' }}
             extra={
-              <Segmented 
-                size="small"
-                options={[
-                  { label: '全部', value: 'all' },
-                  { label: '先息后本', value: 'interest_first' },
-                  { label: '等额', value: 'equal' }
-                ]} 
-                value={filterMethod}
-                onChange={(value) => setFilterMethod(value as string)}
-              />
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <Segmented 
+                  size="small"
+                  options={[
+                    { label: '全部', value: 'all' },
+                    { label: '先息后本', value: 'interest_first' },
+                    { label: '等额', value: 'equal' }
+                  ]} 
+                  value={filterMethod}
+                  onChange={(value) => setFilterMethod(value as string)}
+                />
+                <Segmented
+                  size="small"
+                  options={[
+                    { value: 'list', icon: <UnorderedListOutlined /> },
+                    { value: 'calendar', icon: <CalendarOutlined /> }
+                  ]}
+                  value={viewMode}
+                  onChange={(value) => setViewMode(value as 'list' | 'calendar')}
+                />
+              </div>
             }
           >
-            <Table 
-              columns={columns} 
-              dataSource={filteredItems} 
-              rowKey="id" 
-              size="small"
-              loading={detailsLoading}
-              pagination={false}
-              scroll={{ x: 'max-content' }}
-              style={{ fontSize: '12px' }}
-            />
+            {viewMode === 'list' ? (
+              <Table 
+                columns={columns} 
+                dataSource={filteredItems} 
+                rowKey="id" 
+                size="small"
+                loading={detailsLoading}
+                pagination={false}
+                scroll={{ x: 'max-content' }}
+                style={{ fontSize: '12px' }}
+              />
+            ) : (
+              <div className="calendar-container">
+                <Calendar 
+                  fullscreen={false} 
+                  value={dayjs(selectedMonth)}
+                  headerRender={() => null} // 隐藏自带头部，由外部 selectedMonth 控制
+                  cellRender={(current) => {
+                    const dateStr = current.format('YYYY-MM-DD');
+                    const items = filteredItems.filter(item => item.due_date === dateStr);
+                    if (items.length === 0) return null;
+                    return (
+                      <div className="daily-items-wrapper" style={{ marginTop: '0px', maxHeight: isMobile ? '40px' : '55px', overflowY: 'auto', overflowX: 'hidden' }}>
+                        <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                          {items.map(item => (
+                            <li key={item.id} style={{ 
+                              fontSize: '10px', 
+                              lineHeight: '1.4',
+                              marginBottom: '1px',
+                              whiteSpace: 'nowrap', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis' 
+                            }}>
+                              <Badge 
+                                status={item.status === 'paid' ? 'success' : 'warning'} 
+                                text={<span style={{ color: item.repayment_method === 'interest_first' ? colors.orange : colors.cyan, fontSize: '9px' }}>{item.account_name}</span>} 
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  }}
+                />
+              </div>
+            )}
           </Card>
         </Col>
       </Row>
@@ -746,8 +804,89 @@ const Dashboard: React.FC = () => {
         .recharts-tooltip-item-list {
           color: #fff !important;
         }
-        .recharts-pie-label-text {
+                .recharts-pie-label-text {
           fill: #fff !important;
+        }
+        .calendar-container .ant-picker-calendar {
+          background: transparent !important;
+        }
+        .calendar-container .ant-picker-calendar-header {
+          padding: 0 !important;
+          margin-bottom: 4px !important;
+        }
+        .calendar-container .ant-picker-content {
+          width: 100% !important;
+        }
+        .calendar-container .ant-picker-cell-inner {
+          min-width: auto !important;
+          padding: 0 !important;
+        }
+        .calendar-container .ant-picker-cell {
+          padding: 0 !important;
+          color: rgba(255,255,255,0.45) !important;
+        }
+        .calendar-container .ant-picker-cell-in-view {
+          color: rgba(255,255,255,0.85) !important;
+        }
+        .calendar-container .ant-picker-cell-selected .ant-picker-calendar-date {
+          background: rgba(0, 210, 255, 0.08) !important;
+          border: 1px solid ${colors.cyan}88 !important;
+          box-shadow: inset 0 0 8px rgba(0, 210, 255, 0.15) !important;
+        }
+        .calendar-container .ant-picker-calendar-date {
+          border: 1px solid transparent;
+          transition: all 0.3s;
+          margin: 0 !important;
+          padding: 2px 4px !important;
+          height: ${isMobile ? '70px' : '90px'} !important;
+          display: flex;
+          flex-direction: column;
+        }
+        .daily-items-wrapper::-webkit-scrollbar {
+          width: 3px;
+        }
+        .daily-items-wrapper::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .daily-items-wrapper::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 3px;
+        }
+        .daily-items-wrapper::-webkit-scrollbar-thumb:hover {
+          background: ${colors.cyan}66;
+        }
+        .calendar-container .ant-picker-calendar-date-content {
+          flex: 1;
+          overflow: hidden;
+        }
+        .calendar-container .ant-picker-calendar-date:hover {
+          background: rgba(255,255,255,0.05) !important;
+        }
+        .calendar-container .ant-picker-calendar-date-value {
+          color: inherit !important;
+          line-height: 1 !important;
+          margin-bottom: 2px;
+          font-size: 12px;
+        }
+        .calendar-container .ant-picker-cell-today .ant-picker-calendar-date {
+          border-color: rgba(0, 210, 255, 0.4) !important;
+          background: rgba(0, 210, 255, 0.05) !important;
+        }
+        .calendar-container .ant-picker-cell-today .ant-picker-calendar-date-value {
+          color: ${colors.cyan} !important;
+          font-weight: bold;
+          position: relative;
+          display: inline-block;
+        }
+        .calendar-container .ant-picker-cell-today .ant-picker-calendar-date-value::after {
+          content: '';
+          position: absolute;
+          bottom: -2px;
+          left: 0;
+          width: 100%;
+          height: 2px;
+          background: ${colors.cyan};
+          box-shadow: 0 0 5px ${colors.cyan};
         }
       `}</style>
       {/* Quick Record Modal */}
